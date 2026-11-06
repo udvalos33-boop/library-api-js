@@ -6,6 +6,9 @@ const router = Router();
 
 router.get("/", c.list);
 
+// Тогтмол /search замыг хувьсах /:id замаас өмнө бүртгэнэ.
+router.get("/search", c.search);
+
 router.get("/:id", c.getOne);
 
 router.post("/", c.create);

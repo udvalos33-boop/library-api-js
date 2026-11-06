@@ -1,5 +1,6 @@
 import {
   books,
+  searchByTitle,
   findBookById,
   addBook,
   updateBook,
@@ -95,4 +96,15 @@ export function remove(req, res) {
   }
 
   res.status(204).end();
+}
+// GET /books/search?q=node
+export function search(req, res) {
+  const { q = "" } = req.query;
+
+  if (typeof q !== "string") {
+    return res.status(400).json({ message: "q must be a string" });
+  }
+
+  const results = searchByTitle(q.trim());
+  res.json({ count: results.length, data: results });
 }

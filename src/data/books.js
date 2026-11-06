@@ -60,3 +60,9 @@ export function removeBook(id) {
 
   return true;
 }
+// Семинар 2-ын filter + case-insensitive хайлтыг үргэлжлүүлэв.
+export function searchByTitle(keyword) {
+  return books.filter((book) =>
+    book.title.toLowerCase().includes(keyword.toLowerCase())
+  );
+}
