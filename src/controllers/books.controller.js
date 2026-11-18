@@ -1,108 +1,82 @@
 import { prisma } from "../db.js";
+import { isId, isPrice, isText } from "../inputs.js";
 
-export async function list(req, res, next) {
-  try {
-    const books = await prisma.book.findMany();
-    res.json({ count: books.length, data: books });
-  } catch (error) {
-    next(error);
-  }
+export async function list(req, res) {
+  const data = await prisma.book.findMany({
+    include: { author: true },
+    orderBy: { id: "asc" }
+  });
+  res.json({ count: data.length, data });
 }
-// GET /books/:id
-export async function getOne(req, res, next) {
+
+export async function getOne(req, res) {
   const id = Number(req.params.id);
+  if (!isId(id)) return res.status(400).json({ message: "Invalid book ID" });
 
-  if (!Number.isInteger(id) || id < 1 || id > 2147483647) {
-    return res.status(400).json({ message: "Invalid book ID" });
-  }
+  const book = await prisma.book.findUnique({ where: { id } });
+  if (!book) return res.status(404).json({ message: "Book not found" });
 
-  try {
-    const book = await prisma.book.findUnique({ where: { id } });
-
-    if (!book) {
-      return res.status(404).json({ message: "Book not found" });
-    }
-
-    res.json(book);
-  } catch (error) {
-    next(error);
-  }
+  res.json(book);
 }
 
-// POST /books
-export async function create(req, res, next) {
-  const { title, price } = req.body ?? {};
+export async function create(req, res) {
+  return createBook(req.body, req.body?.authorId, res);
+}
 
-  if (typeof title !== "string" || title.trim() === "") {
-    return res.status(400).json({ message: "title is required" });
-  }
+export async function createForAuthor(req, res) {
+  return createBook(req.body, Number(req.params.id), res);
+}
 
-  if (!Number.isInteger(price)) {
-    return res.status(400).json({ message: "price must be an integer" });
+async function createBook(body, authorId, res) {
+  const { title, price } = body ?? {};
+  if (!isText(title)) return res.status(400).json({ message: "title is required" });
+  if (!isPrice(price) || !isId(authorId)) {
+    return res.status(400).json({ message: "Valid price and authorId are required" });
   }
 
   try {
     const book = await prisma.book.create({
-      data: { title: title.trim(), price }
+      data: { title: title.trim(), price, authorId }
     });
-
     res.status(201).json(book);
   } catch (error) {
-    next(error);
+    if (error.code === "P2003") {
+      return res.status(400).json({ message: "Зохиолч олдсонгүй" });
+    }
+    throw error;
   }
 }
 
-// PATCH /books/:id
-export async function update(req, res, next) {
+export async function update(req, res) {
   const id = Number(req.params.id);
+  if (!isId(id)) return res.status(400).json({ message: "Invalid book ID" });
 
-  if (!Number.isInteger(id) || id < 1 || id > 2147483647) {
-    return res.status(400).json({ message: "Invalid book ID" });
-  }
-
-  const {
-    title,
-    price,
-    isAvailable
-  } = req.body ?? {};
-
-  const changes = {};
-
-  if (title !== undefined) {
-    changes.title = title;
-  }
-
-  if (price !== undefined) {
-    changes.price = price;
-  }
-
-  if (isAvailable !== undefined) {
-    changes.isAvailable = isAvailable;
+  const { title, price, isAvailable } = req.body ?? {};
+  if (
+    (title !== undefined && !isText(title)) ||
+    (price !== undefined && !isPrice(price)) ||
+    (isAvailable !== undefined && typeof isAvailable !== "boolean")
+  ) {
+    return res.status(400).json({ message: "Invalid book fields" });
   }
 
   try {
     const book = await prisma.book.update({
       where: { id },
-      data: changes
+      data: { title: title?.trim(), price, isAvailable }
     });
-
     res.json(book);
   } catch (error) {
     if (error.code === "P2025") {
       return res.status(404).json({ message: "Book not found" });
     }
-
-    next(error);
+    throw error;
   }
 }
 
-// DELETE /books/:id
-export async function remove(req, res, next) {
+export async function remove(req, res) {
   const id = Number(req.params.id);
-
-  if (!Number.isInteger(id) || id < 1 || id > 2147483647) {
-    return res.status(400).json({ message: "Invalid book ID" });
-  }
+  if (!isId(id)) return res.status(400).json({ message: "Invalid book ID" });
 
   try {
     await prisma.book.delete({ where: { id } });
@@ -111,27 +85,21 @@ export async function remove(req, res, next) {
     if (error.code === "P2025") {
       return res.status(404).json({ message: "Book not found" });
     }
-
-    next(error);
+    throw error;
   }
 }
-// GET /books/search?q=node
-export async function search(req, res, next) {
-  const { q = "" } = req.query;
 
+export async function search(req, res) {
+  const { q = "" } = req.query;
   if (typeof q !== "string") {
     return res.status(400).json({ message: "q must be a string" });
   }
 
-  try {
-    const results = await prisma.book.findMany({
-      where: {
-        title: { contains: q.trim(), mode: "insensitive" }
-      }
-    });
-
-    res.json({ count: results.length, data: results });
-  } catch (error) {
-    next(error);
-  }
+  // Escape PostgreSQL LIKE wildcards to keep the search a literal substring.
+  const keyword = q.trim().replace(/[\\%_]/g, "\\$&");
+  const data = await prisma.book.findMany({
+    where: { title: { contains: keyword, mode: "insensitive" } },
+    orderBy: { id: "asc" }
+  });
+  res.json({ count: data.length, data });
 }

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 
+import authorsRouter from "./routes/authors.router.js";
 import booksRouter from "./routes/books.router.js";
 import { logger } from "./middlewares/logger.js";
 import {
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use(logger);
 
 app.use("/books", booksRouter);
+app.use("/authors", authorsRouter);
 
 app.use(notFound);
 
