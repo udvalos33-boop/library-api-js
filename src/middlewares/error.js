@@ -17,7 +17,7 @@ export function errorHandler(error, req, res, next) {
   res.status(status).json({
     message:
       status === 400
-        ? "Invalid request"
+        ? error.message ?? "Invalid request"
         : "Internal server error"
   });
 }
